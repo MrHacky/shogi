@@ -131,7 +131,7 @@ type clickHandler = (row: number, col: number) => void;
 
 function renderTile(tile: number, row: number, col: number, onClick: clickHandler)
 {
-    const color = tile == 0 ? "white" : tile == 2 ? "red" : "blue";
+    const color = tile == 0 ? "white" : tile == 2 ? "green" : "blue";
 
     return <span style={{background: color, gridRow: row + 1, gridColumn: col + 1, border: "1px solid black"}} onClick={(e) => onClick(row, col)}></span>
 }
@@ -145,20 +145,25 @@ function renderLine(line: number[], row: number, onClick: clickHandler)
 
 const peer = new Peer();
 let conn: any = null;
-let host = true;
+let othercb: any = null;
 function connect(c: any) {
     conn = c;
     c.on('open', () => {
         c.on('data', function(data: any) {
-            alert(JSON.stringify(data));
+            if (othercb)
+                othercb(data);
+            //alert(JSON.stringify(data));
         })
     });
 };
 
-peer.on('connection', connect);
+peer.on('connection', (c) => {
+    if (!conn)
+        connect(c);
+});
 
 function App() {
-    let [board, setBoard]= useState(newBoard(4));
+    let [board, setBoard]= useState(newBoard(42));
     let [player, setPlayer] = useState(1);
     let [other, setOther] = useState('');
     let [text, setText] = useState('');
@@ -173,22 +178,33 @@ function App() {
         nb[row][col] = player;
         setBoard(nb);
         setPlayer(3 - player);
-        setYourTurn(!yourTurn)
+        setYourTurn(false)
+        conn.send({ row, col });
         //alert(`${row}x${col}`);
     }
+
+    othercb = ({row, col}: any) => {
+        const nb = JSON.parse(JSON.stringify(board));
+        nb[row][col] = player;
+        setBoard(nb);
+        setPlayer(3 - player);
+        setYourTurn(true);
+	};
 
     console.log(peer.id);
 
   return (
     <div className="App">
+        <div>v0.42</div>
         {peer.id}
         <input type="text" onChange={(e) => setOther(e.target.value)}/><button onClick={() => connect(peer.connect(other))}>Connect</button>
-        <input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>
-        <div style={{ display: 'grid', width: '400px', height: '400px' }}>
+        {/*<input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>*/}
+        <div style={{ display: 'grid', width: '800px', height: '800px' }}>
             {board.map((x, i) => renderLine(x, i, onClick))}
         </div>
     </div>
   );
 }
 
+// TODO: connections after first will be observers
 export default App;
