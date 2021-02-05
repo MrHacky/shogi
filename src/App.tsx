@@ -145,7 +145,7 @@ function renderLine(line: number[], row: number, onClick: clickHandler)
 
 const peer = new Peer();
 let conn: any = null;
-
+let host = true;
 function connect(c: any) {
     conn = c;
     c.on('open', () => {
@@ -162,16 +162,20 @@ function App() {
     let [player, setPlayer] = useState(1);
     let [other, setOther] = useState('');
     let [text, setText] = useState('');
+    let [yourTurn, setYourTurn] = useState(true);
 
     function onClick(row: number, col: number) {
         if (board[row][col] != 0)
+            return;
+        if (!yourTurn)
             return;
         const nb = JSON.parse(JSON.stringify(board));
         nb[row][col] = player;
         setBoard(nb);
         setPlayer(3 - player);
+        setYourTurn(!yourTurn)
         //alert(`${row}x${col}`);
-	}
+    }
 
     console.log(peer.id);
 
@@ -179,7 +183,7 @@ function App() {
     <div className="App">
         {peer.id}
         <input type="text" onChange={(e) => setOther(e.target.value)}/><button onClick={() => connect(peer.connect(other))}>Connect</button>
-        <input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { conn.send(text); setText(''); } }>Send</button>
+        <input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>
         <div style={{ display: 'grid', width: '400px', height: '400px' }}>
             {board.map((x, i) => renderLine(x, i, onClick))}
         </div>
