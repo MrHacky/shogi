@@ -1,6 +1,8 @@
 import React, {useState, useEffect, useRef} from 'react';
 import Peer from 'peerjs';
 
+import ai from './ai';
+
 function newBoard(size: number): number[][] {
     const line1 = [2, ...[...new Array(size)].map((x, i) => i % 2 ? 1 : 0), 2];
     const line2 = [2, ...[...new Array(size)].map((x, i) => i % 2 ? 0 : 2), 2];
@@ -151,6 +153,8 @@ function App() {
             <div style={{ display: 'grid', width: '700px', height: '700px' }}>
                 {board.map((x, i) => renderLine(x, i, onClick))}
             </div>
+            <br/>
+            {ai(player, board)}
         </div>
     );
 }
