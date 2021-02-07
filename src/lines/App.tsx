@@ -144,7 +144,7 @@ function App() {
 
     return (
         <div className="App">
-            <div>v0.42</div>
+            <div>v0.42.1</div>
             {connection ? 'Connected' : peer ? <a href={window.location + '#connect=' + peer.id} target="_blank">Share</a> : 'Initializing...'}
             <br/>
             {yourTurn ? 'Your' : 'Opponent'} ({player == 1 ? 'Blue' : 'Red'}) Move
