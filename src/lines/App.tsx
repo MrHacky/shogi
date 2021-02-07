@@ -36,6 +36,7 @@ function usePeer(opts: PeerOpts): [ Peer | undefined, (peerId: string) => void ]
 {
     let [ peer, setPeer ] = useState<Peer | undefined>(undefined);
     let [ init, setInit ] = useState(false);
+    let onConnection = useRefCallback(opts.onConnection);
 
     useEffect(() => {
         const newPeer = new Peer();
@@ -47,7 +48,7 @@ function usePeer(opts: PeerOpts): [ Peer | undefined, (peerId: string) => void ]
 
         newPeer.on('connection', conn => {
             conn.on('open', () => {
-                opts.onConnection(conn);
+                onConnection(conn);
             });
         });
 
@@ -63,7 +64,7 @@ function usePeer(opts: PeerOpts): [ Peer | undefined, (peerId: string) => void ]
             return;
         const conn = peer.connect(peerId);
         conn.on('open', () => {
-            opts.onConnection(conn);
+            onConnection(conn);
         });
     }
 
@@ -106,13 +107,12 @@ function App() {
         setPlayer(3 - player);
         setYourTurn(true);
     });
-    let onConnection = useRefCallback((conn: Peer.DataConnection) => {
-        if (!connection)
-            setConnection(conn);
-        conn.on('data', onData);
-    });
     let [ peer, connect ] = usePeer({
-        onConnection
+        onConnection: (conn: Peer.DataConnection) => {
+            if (!connection)
+                setConnection(conn);
+            conn.on('data', onData);
+        },
     });
 
     useEffect(() => {
@@ -144,6 +144,8 @@ function App() {
         <div className="App">
             <div>v0.42</div>
             {connection ? 'Connected' : peer ? <a href={window.location + '#connect=' + peer.id} target="_blank">Share</a> : 'Initializing...'}
+            <br/>
+            {yourTurn ? 'Your' : 'Opponent'} ({player == 1 ? 'Blue' : 'Red'}) Move
             {/*<input type="text" onChange={(e) => setOther(e.target.value)}/><button onClick={() => connect(peer.connect(other))}>Connect</button>*/}
             {/*<input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>*/}
             <div style={{ display: 'grid', width: '700px', height: '700px' }}>
