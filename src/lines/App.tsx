@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import Peer from 'peerjs';
 
 function newBoard(size: number): number[][] {
@@ -16,7 +16,7 @@ type clickHandler = (row: number, col: number) => void;
 
 function renderTile(tile: number, row: number, col: number, onClick: clickHandler)
 {
-    const color = tile == 0 ? "white" : tile == 2 ? "green" : "blue";
+    const color = tile == 0 ? "white" : tile == 2 ? "red" : "blue";
 
     return <span style={{background: color, gridRow: row + 1, gridColumn: col + 1, border: "1px solid black"}} onClick={(e) => onClick(row, col)}></span>
 }
@@ -28,33 +28,105 @@ function renderLine(line: number[], row: number, onClick: clickHandler)
     </>
 }
 
-const peer = new Peer();
-let conn: any = null;
-let othercb: any = null;
-function connect(c: any) {
-    conn = c;
-    c.on('open', () => {
-        c.on('data', function(data: any) {
-            if (othercb)
-                othercb(data);
-            //alert(JSON.stringify(data));
-        })
-    });
+type PeerOpts = {
+    onConnection: (coon: Peer.DataConnection) => void,
 };
 
-peer.on('connection', (c) => {
-    if (!conn)
-        connect(c);
-});
+function usePeer(opts: PeerOpts): [ Peer | undefined, (peerId: string) => void ]
+{
+    let [ peer, setPeer ] = useState<Peer | undefined>(undefined);
+    let [ init, setInit ] = useState(false);
+
+    useEffect(() => {
+        const newPeer = new Peer();
+        newPeer.on('open', () => {
+            setInit(true);
+        });
+
+        setPeer(newPeer);
+
+        newPeer.on('connection', conn => {
+            conn.on('open', () => {
+                opts.onConnection(conn);
+            });
+        });
+
+        return () => {
+            if (peer)
+                peer.destroy();
+        }
+    }, []);
+
+    function connect(peerId: string)
+    {
+        if (!peer)
+            return;
+        const conn = peer.connect(peerId);
+        conn.on('open', () => {
+            opts.onConnection(conn);
+        });
+    }
+
+    return [
+        init ? peer : undefined,
+        connect,
+    ];
+}
+
+function removeHash()
+{
+    window.history.pushState("", document.title, window.location.pathname + window.location.search);
+}
+
+function useRefCallback<F extends Function>(f: F): F
+{
+    let ref = useRef<F>(f);
+
+    useEffect(() => {
+        ref.current = f;
+    }, [f]);
+
+    let r = (...args: any[]) => ref.current(...args);
+    return r as any as F;
+}
 
 function App() {
-    let [board, setBoard]= useState(newBoard(42));
+    let [board, setBoard]= useState(newBoard(6));
     let [player, setPlayer] = useState(1);
     let [other, setOther] = useState('');
     let [text, setText] = useState('');
     let [yourTurn, setYourTurn] = useState(true);
+    let [connection, setConnection] = useState<Peer.DataConnection | undefined>(undefined);
+
+    let [callbacks] = useState<any>({});
+    let onData = useRefCallback(({row, col}: any) => {
+        const nb = JSON.parse(JSON.stringify(board));
+        nb[row][col] = player;
+        setBoard(nb);
+        setPlayer(3 - player);
+        setYourTurn(true);
+    });
+    let onConnection = useRefCallback((conn: Peer.DataConnection) => {
+        if (!connection)
+            setConnection(conn);
+        conn.on('data', onData);
+    });
+    let [ peer, connect ] = usePeer({
+        onConnection
+    });
+
+    useEffect(() => {
+        let hash = window.location.hash;
+        let match = hash.match(/^#connect=(.*)/);
+        if (peer && match) {
+            connect(match[1]);
+            removeHash();
+        };
+    }, [ peer ]);
 
     function onClick(row: number, col: number) {
+        if (!connection)
+            return;
         if (board[row][col] != 0)
             return;
         if (!yourTurn)
@@ -64,31 +136,21 @@ function App() {
         setBoard(nb);
         setPlayer(3 - player);
         setYourTurn(false)
-        conn.send({ row, col });
+        connection.send({ row, col });
         //alert(`${row}x${col}`);
     }
 
-    othercb = ({row, col}: any) => {
-        const nb = JSON.parse(JSON.stringify(board));
-        nb[row][col] = player;
-        setBoard(nb);
-        setPlayer(3 - player);
-        setYourTurn(true);
-	};
-
-    console.log(peer.id);
-
-  return (
-    <div className="App">
-        <div>v0.42</div>
-        {peer.id}
-        <input type="text" onChange={(e) => setOther(e.target.value)}/><button onClick={() => connect(peer.connect(other))}>Connect</button>
-        {/*<input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>*/}
-        <div style={{ display: 'grid', width: '800px', height: '800px' }}>
-            {board.map((x, i) => renderLine(x, i, onClick))}
+    return (
+        <div className="App">
+            <div>v0.42</div>
+            {connection ? 'Connected' : peer ? <a href={window.location + '#connect=' + peer.id} target="_blank">Share</a> : 'Initializing...'}
+            {/*<input type="text" onChange={(e) => setOther(e.target.value)}/><button onClick={() => connect(peer.connect(other))}>Connect</button>*/}
+            {/*<input type="text" onChange={(e) => setText(e.target.value)}/><button onClick={() => { setYourTurn(false); conn.send(text); setText(''); } }>Send</button>*/}
+            <div style={{ display: 'grid', width: '700px', height: '700px' }}>
+                {board.map((x, i) => renderLine(x, i, onClick))}
+            </div>
         </div>
-    </div>
-  );
+    );
 }
 
 export default App;
